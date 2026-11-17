@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and edit. Only project_id is required.
+project_id = "your-gcp-project-id"
+
+# Optional overrides (defaults shown):
+# region       = "us-central1"
+# zone         = "us-central1-a"
+# cluster_name = "telemetry-collector"
+# machine_type = "e2-standard-2"
+# node_count   = 2

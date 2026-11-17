@@ -1,0 +1,45 @@
+# Optional demo traffic. Runs the sample producer (baked into the collector
+# image) so you see logs flowing end-to-end immediately. The producer sends
+# -count logs and exits; the Deployment restarts it, giving a steady trickle.
+#
+# IMAGE_PLACEHOLDER is substituted by scripts/gke-deploy.sh.
+# Delete with: kubectl -n telemetry delete deployment telemetry-producer
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-producer
+  namespace: telemetry
+  labels:
+    app: telemetry-producer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemetry-producer
+  template:
+    metadata:
+      labels:
+        app: telemetry-producer
+    spec:
+      containers:
+        - name: producer
+          image: IMAGE_PLACEHOLDER
+          command: ["/producer"]
+          args:
+            - "-endpoint"
+            - "telemetry-collector:4317"
+            - "-service"
+            - "telemetry-demo"
+            - "-count"
+            - "100000"
+            - "-batch"
+            - "10"
+            - "-interval"
+            - "200ms"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi

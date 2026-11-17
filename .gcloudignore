@@ -1,0 +1,13 @@
+# Files not uploaded as Cloud Build context (gcloud builds submit).
+.git/
+bin/
+data/
+tmp/
+*.log
+.env
+.env.*
+coverage.out
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfvars

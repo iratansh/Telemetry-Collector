@@ -7,3 +7,14 @@
 /tmp/
 *.log
 coverage.out
+CODEBASE_GLOSSARY.md
+CODEBASE_GUIDE.md
+
+# Terraform — never commit provider plugins, state, or local vars.
+# (.terraform.lock.hcl IS intentionally kept tracked to pin provider versions.)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.tfstate.lock.info
+crash.log

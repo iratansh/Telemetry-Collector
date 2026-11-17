@@ -1,0 +1,111 @@
+# The telemetry collector: OTLP/gRPC receiver + WAL + batching export to Loki,
+# plus the in-cluster Kubernetes state-metrics pull.
+#
+# IMAGE_PLACEHOLDER is substituted by scripts/gke-deploy.sh with the pushed image.
+#
+# Single replica on purpose: the WAL is a single-writer file on a ReadWriteOnce
+# disk, so this does not scale horizontally. strategy: Recreate avoids two pods
+# fighting over the same PersistentVolume during a rollout.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-collector
+  namespace: telemetry
+  labels:
+    app: telemetry-collector
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: telemetry-collector
+  template:
+    metadata:
+      labels:
+        app: telemetry-collector
+    spec:
+      serviceAccountName: telemetry-collector
+      securityContext:
+        # The image runs as UID/GID 65532. fsGroup makes the mounted WAL disk
+        # group-writable so the collector can create /data/wal.
+        fsGroup: 65532
+      containers:
+        - name: collector
+          image: IMAGE_PLACEHOLDER
+          ports:
+            - name: grpc
+              containerPort: 4317
+            - name: http
+              containerPort: 8888
+          env:
+            - name: GRPC_ADDR
+              value: ":4317"
+            - name: HTTP_ADDR
+              value: ":8888"
+            - name: EXPORT_ENDPOINT
+              value: "http://loki:3100/otlp/v1/logs"
+            - name: WAL_DIR
+              value: "/data/wal"
+            - name: WAL_SYNC
+              value: "true"
+            - name: KUBERNETES_ENABLED
+              value: "true"
+            # Empty = collect pod/deployment state across all namespaces.
+            - name: KUBERNETES_NAMESPACE
+              value: ""
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          volumeMounts:
+            - name: wal
+              mountPath: /data
+      volumes:
+        - name: wal
+          persistentVolumeClaim:
+            claimName: telemetry-collector-wal
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: telemetry-collector-wal
+  namespace: telemetry
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry-collector
+  namespace: telemetry
+  labels:
+    app: telemetry-collector
+spec:
+  selector:
+    app: telemetry-collector
+  ports:
+    - name: grpc
+      port: 4317
+      targetPort: grpc
+    - name: http
+      port: 8888
+      targetPort: http

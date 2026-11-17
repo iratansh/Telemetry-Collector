@@ -57,6 +57,15 @@ make down
 `make down` preserves named volumes. `docker compose down -v` deletes local
 Loki, Prometheus, and Grafana data.
 
+## Deploy to GKE
+
+To run the collector in a GKE cluster — pulling Kubernetes state metrics, ingesting
+real pod logs via a per-node log agent, and viewing it all from a local Grafana over
+`kubectl port-forward` — see [DEPLOY_GKE.md](DEPLOY_GKE.md). Infrastructure is
+provisioned with Terraform ([terraform/](terraform/)); workloads are plain manifests
+in [deploy/kubernetes/](deploy/kubernetes/). This is a disposable study deployment:
+run `terraform destroy` when done.
+
 ## Native development
 
 Run Loki in Docker and the collector/producer on the host. Stop the full stack

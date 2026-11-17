@@ -1,54 +1,33 @@
+# Read-only access for the collector's Kubernetes state-metrics source.
+# The collector lists pods, deployments, and nodes across ALL namespaces
+# (KUBERNETES_NAMESPACE=""), so pods/deployments use a ClusterRole too.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: telemetry-collector
-  namespace: default
+  namespace: telemetry
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  name: telemetry-collector-metrics
-  namespace: default
+  name: telemetry-collector
 rules:
   - apiGroups: [""]
-    resources: ["pods"]
+    resources: ["pods", "nodes"]
     verbs: ["list"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: telemetry-collector-metrics
-  namespace: default
-subjects:
-  - kind: ServiceAccount
-    name: telemetry-collector
-    namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: telemetry-collector-metrics
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: telemetry-collector-nodes
-rules:
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: telemetry-collector-nodes
+  name: telemetry-collector
 subjects:
   - kind: ServiceAccount
     name: telemetry-collector
-    namespace: default
+    namespace: telemetry
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: telemetry-collector-nodes
+  name: telemetry-collector

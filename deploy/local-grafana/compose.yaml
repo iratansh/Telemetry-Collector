@@ -1,0 +1,26 @@
+# Local Grafana that reads from the GKE stack via kubectl port-forward.
+#
+# Usage (from repo root):
+#   sh scripts/gke-portforward.sh            # terminal 1: forwards Loki + Prometheus
+#   docker compose -f deploy/local-grafana/compose.yaml up   # terminal 2
+# Then open http://localhost:3000 (anonymous viewing; admin/admin to edit).
+name: telemetry-grafana-local
+
+services:
+  grafana:
+    image: grafana/grafana:13.0.12
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    # Lets the container reach the host's port-forwards on Linux too (no-op on
+    # Docker Desktop, where host.docker.internal already works).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

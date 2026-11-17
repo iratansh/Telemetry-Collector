@@ -8,7 +8,10 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/collector ./cmd/co
     mkdir -p /out/data/wal && chmod 0770 /out/data /out/data/wal
 
 FROM scratch
-COPY --from=build --chown=65532:65532 --chmod=0770 /out/data /data
+# Permissions (0770) are already set on /out/data in the build stage; COPY
+# preserves them. Avoid --chmod here so the image builds without BuildKit too
+# (e.g. Cloud Build's classic builder).
+COPY --from=build --chown=65532:65532 /out/data /data
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /out/collector /collector
 COPY --from=build /out/producer /producer

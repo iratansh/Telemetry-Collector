@@ -1,0 +1,98 @@
+# Log-shipping agent: a per-node DaemonSet that tails container log files and
+# pushes them to OUR collector as OTLP. This is the "pickup truck" that turns
+# node log files into OTLP; our collector is the "warehouse" that does the WAL,
+# batching, retries, and export to Loki.
+#
+# It uses the OpenTelemetry Collector Contrib `filelog` receiver. The `container`
+# operator auto-detects the containerd/CRI log format and derives k8s.pod.name,
+# k8s.namespace.name, and k8s.container.name from the file path — so no
+# Kubernetes API access (and no RBAC) is needed here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-agent
+  namespace: telemetry
+data:
+  config.yaml: |
+    receivers:
+      filelog:
+        include: [/var/log/pods/*/*/*.log]
+        # Do not ingest our own stack's logs (collector/loki/prometheus/agent),
+        # which would create noise and a potential feedback loop.
+        exclude: [/var/log/pods/telemetry_*/*/*.log]
+        start_at: end
+        include_file_path: true
+        operators:
+          - type: container
+    processors:
+      resource:
+        attributes:
+          - key: service.name
+            from_attribute: k8s.container.name
+            action: upsert
+          - key: service.name
+            value: gke-pod-logs
+            action: insert
+      batch:
+        timeout: 1s
+    exporters:
+      otlp:
+        endpoint: telemetry-collector:4317
+        tls:
+          insecure: true
+    service:
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        logs:
+          receivers: [filelog]
+          processors: [resource, batch]
+          exporters: [otlp]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-agent
+  namespace: telemetry
+  labels:
+    app: otel-agent
+spec:
+  selector:
+    matchLabels:
+      app: otel-agent
+  template:
+    metadata:
+      labels:
+        app: otel-agent
+    spec:
+      # Run on every node, including any with taints.
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: otel-agent
+          image: otel/opentelemetry-collector-contrib:0.119.0
+          args: ["--config=/conf/config.yaml"]
+          securityContext:
+            # Container log files under /var/log/pods are root-owned; read them as root.
+            runAsUser: 0
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otel-agent
+        - name: varlog
+          hostPath:
+            path: /var/log
